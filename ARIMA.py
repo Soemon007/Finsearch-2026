@@ -1,10 +1,11 @@
 from feature_engineering import train_series, test_series, train_prices, test_prices
 from statsmodels.tsa.arima.model import ARIMA
-from backtest import backtest
+from backtest import backtester
+from AIC import best_order
 import matplotlib.pyplot as plt
 
 # MODEL FITTING
-model = ARIMA(train_series, order=(1,0,0))
+model = ARIMA(train_series, order = best_order)
 results = model.fit()
 
 print(results.summary())
@@ -28,7 +29,7 @@ for pred in forecast:
 
 # SIMULATION
 
-arima_portfolio = backtest(
+arima_portfolio = backtester(
     signals,
     test_prices
 )

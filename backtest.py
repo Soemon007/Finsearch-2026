@@ -1,8 +1,6 @@
-from ARIMA import signals
-from feature_engineering import signals, prices
 import pandas as pd
 
-def backtest(signals, prices, initial_cash=100000):
+def backtester(signals, prices, initial_cash=100000):
     """
     Backtest a trading strategy.
 
