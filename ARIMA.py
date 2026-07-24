@@ -1,15 +1,15 @@
-from feature_engineering import series
+from feature_engineering import train_series, test_series, train_prices, test_prices
 from statsmodels.tsa.arima.model import ARIMA
 
 # MODEL FITTING
-model = ARIMA(series, order=(1,0,0))
+model = ARIMA(train_series, order=(1,0,0))
 results = model.fit()
 
 print(results.summary())
 
 # FORECASTING
 
-forecast = results.forecast(steps = 10)
+forecast = results.forecast(steps = len(test_series))
 
 # TRADING
 
