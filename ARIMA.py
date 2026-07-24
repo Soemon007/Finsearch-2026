@@ -28,15 +28,15 @@ for pred in forecast:
 
 # SIMULATION
 
-portfolio = backtest(
+arima_portfolio = backtest(
     signals,
     test_prices
 )
 
-print(portfolio.head())
+print(arima_portfolio.head())
 
 plt.figure(figsize=(12,6))
-plt.plot(portfolio["PortfolioValue"])
+plt.plot(arima_portfolio["PortfolioValue"])
 plt.title("ARIMA Portfolio Value")
 plt.xlabel("Trading Day")
 plt.ylabel("Portfolio Value")
