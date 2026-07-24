@@ -23,10 +23,3 @@ for pred in forecast:
         signals.append(-1)
     else:
         signals.append(0)
-
-# SIMULATION
-
-cash = 100000
-shares = 0
-
-portfolio_values = []
