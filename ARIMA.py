@@ -17,7 +17,7 @@ forecast = results.forecast(steps = len(test_series))
 # TRADING
 
 signals = []
-threshold = 0.001
+threshold = 0.0001
 
 for pred in forecast:
     if pred > threshold:

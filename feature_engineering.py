@@ -17,8 +17,8 @@ split =  int(0.8 * len(series))
 train_series = series[:split]
 test_series = series[split:]
 
-train_prices = series[:split]
-test_prices= series[split:]
+train_prices = prices[:split]
+test_prices= prices[split:]
 
 result = adfuller(series)
 
