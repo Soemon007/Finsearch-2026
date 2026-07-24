@@ -9,6 +9,7 @@ OHLCV_data['Returns'] = OHLCV_data["Open"].pct_change()
 OHLCV_data['LogReturns'] = np.log(1 + OHLCV_data['Returns'])
 
 series = OHLCV_data['LogReturns'].dropna()
+prices = OHLCV_data['Open'].loc[series.index]
 
 result = adfuller(series)
 
