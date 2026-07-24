@@ -7,8 +7,8 @@ def backtester(
     prices,
     initial_cash=100000,
     position_size=1.0,
-    transaction_cost=0.001,
-    slippage=0.0005,
+    transaction_cost=0.0001,
+    slippage=0.0002,
     stop_loss=0.05,
     take_profit=0.10
 ):

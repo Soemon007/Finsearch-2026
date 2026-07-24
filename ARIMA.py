@@ -16,9 +16,19 @@ print(results.summary())
 test_results = results.apply(test_series)
 forecast = test_results.fittedvalues
 
-# TRADING
+# TRADING:
+# One-way cost = 0.01% fee + 0.02% slippage = 0.03% (0.0003)
+# Round-trip cost = 0.06% (0.0006). Demand at least 0.08% return to enter a trade.
+min_expected_return = 0.0008
 
-signals = [1 if val > 0 else -1 for val in forecast]
+signals = []
+for val in forecast:
+    if val > min_expected_return:
+        signals.append(1)    # Strong Buy: expected return beats fees
+    elif val < -min_expected_return:
+        signals.append(-1)   # Strong Sell: exit position
+    else:
+        signals.append(0)    # Hold: forecast is too weak to justify trading costs
 
 # SIMULATION
 
