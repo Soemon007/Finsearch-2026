@@ -1,5 +1,7 @@
 from statsmodels.tsa.arima.model import ARIMA
 from backtest import backtester
+from metric import evaluate_strategy, compare_strategies
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -39,7 +41,7 @@ def Forecast(results, test_series, test_prices):
     return arima_portfolio, forecast, signals
 
 def ARIMA_summary(arima_portfolio, forecast, signals):
-    
+
     print(arima_portfolio.head())
     print(forecast.head())
 
@@ -55,3 +57,6 @@ def ARIMA_summary(arima_portfolio, forecast, signals):
     plt.ylabel("Portfolio Value")
     plt.grid(True)
     plt.show()
+
+    evaluate_strategy(arima_portfolio, "ARIMA")
+
