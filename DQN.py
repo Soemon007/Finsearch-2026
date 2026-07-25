@@ -48,6 +48,22 @@ WHAT WAS WRONG BEFORE, AND WHAT CHANGED
    for evaluation (a purely vanilla, no-architecture-change safeguard against
    ending training on a locally bad epsilon-greedy episode).
 
+6. TRAIN/EVAL COST MISMATCH -> ENVIRONMENT NOW CHARGES THE SAME FEES/SLIPPAGE
+   AS THE BACKTESTER
+   Previously `StockTradingEnv.step()` executed Buy/Sell at the raw price with
+   no transaction cost or slippage, while `backtester()` charges both on every
+   trade. That meant the agent was trained to maximise fee-free paper P&L and
+   only "discovered" that trading is costly once its fixed greedy policy hit
+   the backtester -- it had no gradient signal telling it that flipping
+   position has a real cost, so it had no incentive to avoid low-conviction
+   trades that get eaten by fees/slippage. `StockTradingEnv` now applies the
+   exact same BUY/SELL execution-price, fee, and slippage formulas as
+   `backtester()` (transaction_cost=0.0001, slippage=0.0002) when updating
+   balance/shares_held, so the percentage-return reward the agent optimises
+   during training already reflects the costs it will be scored on at test
+   time. This is the ARIMA-equivalent of `min_expected_return` -- it gives the
+   agent a reason to prefer Hold over marginal, cost-negative flips.
+
 Everything else (environment mechanics: all-in/all-out Sell/Hold/Buy, the
 imports, and the way results are handed to `backtester`) is kept the same as
 the notebook so this is a drop-in replacement.
@@ -78,6 +94,11 @@ np.random.seed(SEED)
 torch.manual_seed(SEED)
 
 STATE_FEATURES = ['Price', 'SMA_5', 'SMA_20', 'Momentum_5', 'Momentum_10', 'Volatility_10']
+
+# Same cost structure as backtest.py's defaults -- kept as named constants so
+# the environment and the backtester can never silently drift apart.
+TRANSACTION_COST = 0.0001
+SLIPPAGE = 0.0002
 
 
 # ----------------------------------------------------------------------------
@@ -130,11 +151,14 @@ STATE_STD = _train_stats_df.std().replace(0, 1e-6).values.astype(np.float32)
 # fill, reward derived from the resulting net worth change)
 # ----------------------------------------------------------------------------
 class StockTradingEnv:
-    def __init__(self, dataframe, initial_balance=100000, reward_scale=100.0):
+    def __init__(self, dataframe, initial_balance=100000, reward_scale=100.0,
+                 transaction_cost=TRANSACTION_COST, slippage=SLIPPAGE):
         self.df = dataframe.reset_index(drop=True)
         self.initial_balance = initial_balance
         self.state_features = STATE_FEATURES
         self.reward_scale = reward_scale
+        self.transaction_cost = transaction_cost
+        self.slippage = slippage
         self.reset()
 
     def reset(self):
@@ -153,13 +177,23 @@ class StockTradingEnv:
         current_price = self.df.loc[self.current_step, 'Price']
 
         # 0: Sell, 1: Hold, 2: Buy
+        # Execution price, fee, and slippage mirror backtester.py's BUY/SELL
+        # blocks exactly, so the reward the agent trains on already prices in
+        # the same costs it will be scored on later.
         if action == 2:
             if self.balance > 0:
-                self.shares_held += self.balance / current_price
-                self.balance = 0
+                execution_price = current_price * (1 + self.slippage)
+                shares_bought = (self.balance / execution_price) * (1 + self.transaction_cost)
+                cost = shares_bought * execution_price
+                fee = cost * self.transaction_cost
+                self.balance -= (cost + fee)
+                self.shares_held += shares_bought
         elif action == 0:
             if self.shares_held > 0:
-                self.balance += self.shares_held * current_price
+                execution_price = current_price * (1 - self.slippage)
+                revenue = self.shares_held * execution_price
+                fee = revenue * self.transaction_cost
+                self.balance += (revenue - fee)
                 self.shares_held = 0
 
         self.current_step += 1
