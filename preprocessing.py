@@ -9,3 +9,6 @@ def preprocessing(file_path):
     for cols in column_list:
         data[cols] = data[cols].str.replace(",", "")
         data[cols] = pd.to_numeric(data[cols], errors= 'coerce')
+
+    cleaned_data = data
+    return cleaned_data
