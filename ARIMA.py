@@ -20,17 +20,46 @@ def Forecast(results, test_series, test_prices):
     test_results = results.apply(test_series)
     forecast = test_results.fittedvalues
 
-    # TRADING:
-    min_expected_return = 0.0008
+    # TRADING
+    forecast = forecast.rolling(3, min_periods=1).mean()
+    mu = forecast.mean()
+    sigma = forecast.std()
+
+    # Avoid divide-by-zero
+    sigma = max(sigma, 1e-8)
+
+    # Hyperparameter
+    z_threshold = 1.0
 
     signals = []
-    for val in forecast:
-        if val > min_expected_return:
-            signals.append(1)   
-        elif val < -min_expected_return:
-            signals.append(-1)  
+
+    for pred in forecast:
+
+        z = (pred - mu) / sigma
+
+        if z > z_threshold:
+            signals.append(1)
+
+        elif z < -z_threshold:
+            signals.append(-1)
+
         else:
-            signals.append(0) 
+            signals.append(0)
+
+    # Remove repeated entries
+    filtered = []
+    position = 0
+
+    for s in signals:
+
+        if s == position:
+            filtered.append(0)
+
+        else:
+            filtered.append(s)
+            position = s
+
+    signals = filtered
     # SIMULATION
 
     arima_portfolio = backtester(
@@ -59,4 +88,3 @@ def ARIMA_summary(arima_portfolio, forecast, signals):
     plt.show()
 
     evaluate_strategy(arima_portfolio, "ARIMA")
-

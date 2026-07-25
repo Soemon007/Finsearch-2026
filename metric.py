@@ -159,12 +159,12 @@ def compare_strategies(arima_portfolio,
 
 # Evaluations
 
-dqn_portfolio = pd.read_csv("dqn_portfolio.csv")
-evaluate_strategy(dqn_portfolio, "DQN")
+#dqn_portfolio = pd.read_csv("dqn_portfolio.csv")
+#evaluate_strategy(dqn_portfolio, "DQN")
 
-comparison = compare_strategies(
-    arima_portfolio,
-    dqn_portfolio
-    )
+#comparison = compare_strategies(
+    #arima_portfolio,
+    #dqn_portfolio
+    #)
 
-print(comparison)
+#print(comparison)
