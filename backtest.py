@@ -9,8 +9,8 @@ def backtester(
     position_size=1.0,
     transaction_cost=0.0001,
     slippage=0.0002,
-    stop_loss=0.05,
-    take_profit=0.10
+    stop_loss=0.03,
+    take_profit=0.15
 ):
     """
     Advanced trading strategy backtester.
