@@ -2,6 +2,7 @@ from preprocessing import preprocessing
 from feature_engineering import feature_engineering
 from AIC import AIC
 from ARIMA import ARIMA_modelling, Forecast, ARIMA_summary
+from DQN import DQN_modelling, DQN_summary
 
 import pandas as pd
 
@@ -23,6 +24,11 @@ def main():
     arima_portfolio, forecast, signals = Forecast(results, test_series, test_prices)
 
     ARIMA_summary(arima_portfolio, forecast, signals)
+
+    #DQN
+    dqn_portfolio, best_overall, seed_results = DQN_modelling(train_prices, test_prices)
+ 
+    DQN_summary(dqn_portfolio, best_overall, seed_results)
 
 if __name__ == "__main__":
     main()
