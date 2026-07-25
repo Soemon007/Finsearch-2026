@@ -52,6 +52,12 @@ WHAT WAS WRONG BEFORE, AND WHAT CHANGED (kept for context)
 11. MULTIPLE SEEDS, SELECTED ON VALIDATION -- trains across several seeds;
     the final model is the seed with the best VALIDATION net worth (never
     training or test), with mean/std across seeds reported for transparency.
+12. RICHER STATE FEATURES -- added RSI(14), MACD histogram (normalised by
+    price), and Bollinger %B alongside the existing SMA-ratio/momentum/
+    volatility features, giving the agent more of the signal a discretionary
+    trader would look at. All three are expressed in bounded or
+    price-relative form so they stay stationary and on a comparable scale to
+    the rest of the state.
 """
 
 import copy
@@ -82,7 +88,8 @@ def set_seed(seed):
 
 
 # Engineered (stationary) features the network actually sees.
-STATE_FEATURES = ['Price_SMA5_Ratio', 'SMA5_SMA20_Ratio', 'Momentum_5', 'Momentum_10', 'Volatility_10']
+STATE_FEATURES = ['Price_SMA5_Ratio', 'SMA5_SMA20_Ratio', 'Momentum_5', 'Momentum_10',
+                   'Volatility_10', 'RSI_14', 'MACD_Hist_Rel', 'BB_PctB']
 STATE_DIM = len(STATE_FEATURES) + 1   # + position flag
 ACTION_DIM = 3                         # 0: Sell, 1: Hold, 2: Buy
 
@@ -114,7 +121,9 @@ def build_feature_frame(prices):
     Price levels (SMA_5, SMA_20, Price itself) are converted to ratios so the
     network is never fed a raw, non-stationary price level -- only scale-free
     quantities that should look similar whether the price is near its
-    training range or has drifted.
+    training range or has drifted. RSI/MACD/Bollinger %B are added as richer
+    technical features; each is expressed in a bounded or price-relative form
+    so it stays on a comparable, stationary scale to the rest of the state.
     """
     df = pd.DataFrame({'Price': prices.astype(np.float64)})
     sma5 = df['Price'].rolling(window=5).mean()
@@ -124,6 +133,33 @@ def build_feature_frame(prices):
     df['Momentum_5'] = df['Price'].pct_change(periods=5)
     df['Momentum_10'] = df['Price'].pct_change(periods=10)
     df['Volatility_10'] = df['Price'].pct_change().rolling(window=10).std()
+
+    # RSI(14): rescaled from [0, 100] to roughly [-1, 1], centred on 0 (50 ->
+    # neutral) so it sits on a similar scale to the other features.
+    delta = df['Price'].diff()
+    avg_gain = delta.clip(lower=0).rolling(window=14).mean()
+    avg_loss = (-delta.clip(upper=0)).rolling(window=14).mean()
+    rs = avg_gain / avg_loss.replace(0, np.nan)
+    rsi = 100 - (100 / (1 + rs))
+    df['RSI_14'] = (rsi.fillna(50.0) - 50.0) / 50.0
+
+    # MACD histogram (12/26/9), divided by price so it's a relative quantity
+    # rather than an absolute price-scale number.
+    ema12 = df['Price'].ewm(span=12, adjust=False).mean()
+    ema26 = df['Price'].ewm(span=26, adjust=False).mean()
+    macd_line = ema12 - ema26
+    signal_line = macd_line.ewm(span=9, adjust=False).mean()
+    df['MACD_Hist_Rel'] = (macd_line - signal_line) / df['Price']
+
+    # Bollinger %B (20-day, 2 std): where price sits within its band, shifted
+    # to be centred on 0 (0.5 -> mid-band is "neutral"). Naturally bounded and
+    # stationary, so it needs no further scaling.
+    bb_std = df['Price'].rolling(window=20).std()
+    bb_upper = sma20 + 2 * bb_std
+    bb_lower = sma20 - 2 * bb_std
+    band_width = (bb_upper - bb_lower).replace(0, np.nan)
+    df['BB_PctB'] = ((df['Price'] - bb_lower) / band_width) - 0.5
+
     return df
 
 
