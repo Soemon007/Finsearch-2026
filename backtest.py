@@ -128,7 +128,7 @@ def backtester(
             capital_used = cash * position_size
 
 
-            shares = capital_used / execution_price*(1 + transaction_cost)
+            shares = capital_used / (execution_price*(1 + transaction_cost))
 
 
             cost = shares * execution_price

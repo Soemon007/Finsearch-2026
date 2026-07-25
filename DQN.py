@@ -1,9 +1,8 @@
 """
 DQN.py
 ------
-Vanilla Deep Q-Network trading agent (single online net + single target net,
-plain MLP, no dueling / prioritized replay / double-DQN / anything
-non-standard).
+Double Dueling Deep Q-Network (D3QN) trading agent (single online net + single 
+target net with Dueling architecture and Double-DQN target evaluation).
 
 MODULE STRUCTURE (matches ARIMA.py's pattern for main.py to call)
 ====================================================================
@@ -30,9 +29,7 @@ WHAT WAS WRONG BEFORE, AND WHAT CHANGED (kept for context)
 2. UNNORMALISED, MIXED-SCALE STATE -- z-score normalised using stats computed
    on the INNER-train slice only (see item 8).
 3. RAW-RUPEE REWARD -> replaced with a risk-adjusted percentage return (item 7).
-4. LOSS/OPTIMISATION STABILITY -- Huber loss + gradient clipping. Still a
-   single, plain feed-forward Q-network -- no dueling/prioritized
-   replay/double-DQN, deliberately kept vanilla.
+4. LOSS/OPTIMISATION STABILITY -- Huber loss + gradient clipping.
 5. TRAINING SCHEDULE -- more episodes, tuned epsilon decay so the greedy
    policy used for evaluation is actually exercised during training.
 6. TRAIN/EVAL COST MISMATCH -- `StockTradingEnv.step()` now charges the same
@@ -58,6 +55,10 @@ WHAT WAS WRONG BEFORE, AND WHAT CHANGED (kept for context)
     trader would look at. All three are expressed in bounded or
     price-relative form so they stay stationary and on a comparable scale to
     the rest of the state.
+13. DOUBLE DUELING DQN ARCHITECTURE -- Upgraded from vanilla MLP Q-network
+    to a Dueling Q-network (separating state-value V(s) and advantage A(s,a)
+    streams) and implemented Double Q-learning target evaluation to mitigate 
+    overestimation bias.
 """
 
 import copy
@@ -209,19 +210,24 @@ def _prepare_features(train_prices, test_prices):
 class StockTradingEnv:
     def __init__(self, dataframe, initial_balance=100000,
                  transaction_cost=TRANSACTION_COST, slippage=SLIPPAGE,
-                 vol_window=VOL_WINDOW):
+                 vol_window=VOL_WINDOW, stop_loss=0.05, take_profit=0.10):
         self.df = dataframe.reset_index(drop=True)
         self.initial_balance = initial_balance
         self.state_features = STATE_FEATURES
         self.transaction_cost = transaction_cost
         self.slippage = slippage
         self.vol_window = vol_window
+        
+        # Add backtester alignment rules
+        self.stop_loss = stop_loss
+        self.take_profit = take_profit
         self.reset()
 
     def reset(self):
         self.current_step = 0
         self.balance = self.initial_balance
         self.shares_held = 0
+        self.entry_price = None  # Track entry price for SL/TP
         self.net_worth = self.initial_balance
         self.returns_history = deque(maxlen=self.vol_window)
         return self._get_state()
@@ -229,35 +235,54 @@ class StockTradingEnv:
     def _get_state(self):
         raw = self.df.loc[self.current_step, self.state_features].values.astype(np.float32)
         norm = (raw - STATE_MEAN) / STATE_STD
-        # Position flag: is the agent currently holding shares? Lets it learn
-        # "enter fresh" and "hold through the cost of flipping" as separate
-        # decisions instead of re-deriving position implicitly.
         position_flag = np.float32(1.0 if self.shares_held > 0 else 0.0)
         return np.concatenate([norm.astype(np.float32), [position_flag]]).astype(np.float32)
 
     def step(self, action):
         current_price = self.df.loc[self.current_step, 'Price']
-
-        # 0: Sell, 1: Hold, 2: Buy
-        # Execution price, fee, and slippage mirror backtester.py's BUY/SELL
-        # blocks exactly, so the reward the agent trains on already prices in
-        # the same costs it will be scored on later.
-        if action == 2:
-            if self.balance > 0:
-                execution_price = current_price * (1 + self.slippage)
-                shares_bought = (self.balance / execution_price) * (1 + self.transaction_cost)
-                cost = shares_bought * execution_price
-                fee = cost * self.transaction_cost
-                self.balance -= (cost + fee)
-                self.shares_held += shares_bought
-        elif action == 0:
-            if self.shares_held > 0:
+        
+        # ---------------------------------------------------------
+        # 1. CHECK STOP LOSS / TAKE PROFIT FIRST (Matches Backtester)
+        # ---------------------------------------------------------
+        if self.shares_held > 0 and self.entry_price is not None:
+            return_pct = (current_price - self.entry_price) / self.entry_price
+            
+            if return_pct <= -self.stop_loss or return_pct >= self.take_profit:
+                # Force liquidation before evaluating the agent's action
                 execution_price = current_price * (1 - self.slippage)
                 revenue = self.shares_held * execution_price
                 fee = revenue * self.transaction_cost
                 self.balance += (revenue - fee)
                 self.shares_held = 0
+                self.entry_price = None
+                action = 1  # Force action to HOLD since we just closed the trade
 
+        # ---------------------------------------------------------
+        # 2. EXECUTE AGENT ACTION (With fixed share math)
+        # ---------------------------------------------------------
+        # 2: Buy, 0: Sell, 1: Hold
+        if action == 2 and self.shares_held == 0:
+            if self.balance > 0:
+                execution_price = current_price * (1 + self.slippage)
+                # FIXED MATH: Divide by (price * fee_multiplier) to prevent negative cash
+                shares_bought = self.balance / (execution_price * (1 + self.transaction_cost))
+                cost = shares_bought * execution_price
+                fee = cost * self.transaction_cost
+                self.balance -= (cost + fee)
+                self.shares_held += shares_bought
+                self.entry_price = execution_price
+                
+        elif action == 0 and self.shares_held > 0:
+            execution_price = current_price * (1 - self.slippage)
+            revenue = self.shares_held * execution_price
+            fee = revenue * self.transaction_cost
+            self.balance += (revenue - fee)
+            self.shares_held = 0
+            self.entry_price = None
+
+        # ---------------------------------------------------------
+        # 3. ADVANCE STEP & CALCULATE REWARD
+        # ---------------------------------------------------------
         self.current_step += 1
         done = self.current_step >= len(self.df) - 1
 
@@ -267,16 +292,10 @@ class StockTradingEnv:
         pct_return = (new_net_worth - self.net_worth) / (self.net_worth + 1e-8)
         self.returns_history.append(pct_return)
 
-        # Risk-adjusted reward: return scaled by the recent realised
-        # volatility of the portfolio's own daily returns (a lightweight
-        # differential-Sharpe-style signal), so the agent is pushed toward
-        # steady gains rather than volatile ones. Falls back to a fixed prior
-        # vol until there's enough history to estimate it, and is clipped for
-        # numerical stability.
         if len(self.returns_history) >= 5:
             vol = float(np.std(self.returns_history))
         else:
-            vol = 0.01  # reasonable daily-return-vol prior before we have data
+            vol = 0.01
         vol = max(vol, 1e-4)
         reward = float(np.clip(pct_return / vol, -5.0, 5.0))
 
@@ -287,21 +306,43 @@ class StockTradingEnv:
 
 
 # ----------------------------------------------------------------------------
-# Q-Network (plain vanilla MLP)
+# Dueling Q-Network
 # ----------------------------------------------------------------------------
-class QNetwork(nn.Module):
+class DuelingQNetwork(nn.Module):
+    """
+    Dueling architecture splits feature processing into two separate streams:
+    1. Value stream V(s): How good is it to be in this state?
+    2. Advantage stream A(s,a): How much better is this action compared to others?
+    """
     def __init__(self, state_dim, action_dim):
-        super(QNetwork, self).__init__()
-        self.fc = nn.Sequential(
+        super(DuelingQNetwork, self).__init__()
+        # Shared feature extraction layers
+        self.feature_layer = nn.Sequential(
             nn.Linear(state_dim, 64),
+            nn.ReLU()
+        )
+        # Value stream: outputs scalar V(s)
+        self.value_stream = nn.Sequential(
+            nn.Linear(64, 64),
             nn.ReLU(),
+            nn.Linear(64, 1)
+        )
+        # Advantage stream: outputs vector A(s, a)
+        self.advantage_stream = nn.Sequential(
             nn.Linear(64, 64),
             nn.ReLU(),
             nn.Linear(64, action_dim)
         )
 
     def forward(self, x):
-        return self.fc(x)
+        features = self.feature_layer(x)
+        values = self.value_stream(features)
+        advantages = self.advantage_stream(features)
+        
+        # Combine V(s) and A(s,a) using the mean-subtraction method for identifiability/stability:
+        # Q(s,a) = V(s) + (A(s,a) - mean_a(A(s,a)))
+        q_values = values + (advantages - advantages.mean(dim=1, keepdim=True))
+        return q_values
 
 
 # ----------------------------------------------------------------------------
@@ -329,7 +370,7 @@ class ReplayBuffer:
 
 
 # ----------------------------------------------------------------------------
-# DQN Agent (vanilla: single online net + single target net, hard updates)
+# DQN Agent (Double Dueling: Dueling nets + Double Q-learning updates)
 # ----------------------------------------------------------------------------
 class DQNAgent:
     def __init__(self, state_dim, action_dim, lr=5e-4, gamma=0.99,
@@ -343,8 +384,9 @@ class DQNAgent:
         self.epsilon_min = epsilon_min
         self.min_replay_size = min_replay_size
 
-        self.policy_net = QNetwork(state_dim, action_dim).to(device)
-        self.target_net = QNetwork(state_dim, action_dim).to(device)
+        # Upgraded to DuelingQNetwork
+        self.policy_net = DuelingQNetwork(state_dim, action_dim).to(device)
+        self.target_net = DuelingQNetwork(state_dim, action_dim).to(device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.target_net.eval()
 
@@ -376,7 +418,12 @@ class DQNAgent:
         q_values = self.policy_net(states_t).gather(1, actions_t)
 
         with torch.no_grad():
-            max_next_q = self.target_net(next_states_t).max(1, keepdim=True)[0]
+            # --- DOUBLE DQN LOGIC ---
+            # 1. Select the action with the highest Q-value using the online policy_net
+            best_next_actions = self.policy_net(next_states_t).argmax(dim=1, keepdim=True)
+            # 2. Evaluate the value of that specific action using the target_net
+            max_next_q = self.target_net(next_states_t).gather(1, best_next_actions)
+            # 3. Compute target Q-value
             target_q = rewards_t + (1 - dones_t) * self.gamma * max_next_q
 
         loss = self.loss_fn(q_values, target_q)
@@ -464,7 +511,7 @@ def train_one_seed(seed, inner_train_features_df, val_features_df, verbose=True)
 # Public entry points, called from main.py
 # ----------------------------------------------------------------------------
 def DQN_modelling(train_prices, test_prices):
-    """Train a vanilla DQN across multiple seeds and backtest the best
+    """Train a Double Dueling DQN across multiple seeds and backtest the best
     (validation-selected) policy on the test split.
 
     Parameters
@@ -485,7 +532,7 @@ def DQN_modelling(train_prices, test_prices):
     """
     inner_train_features_df, val_features_df, test_features_df = _prepare_features(train_prices, test_prices)
 
-    print("Starting DQN Model Training across seeds", SEEDS, "...")
+    print("Starting Double Dueling DQN Model Training across seeds", SEEDS, "...")
 
     seed_results = []
     best_overall = {"val_net_worth": -np.inf}
@@ -560,7 +607,7 @@ def DQN_summary(dqn_portfolio, best_overall=None, seed_results=None):
     if best_overall is not None:
         plt.figure(figsize=(10, 5))
         plt.plot(best_overall["history"],
-                  label=f"DQN Portfolio Value (Train, seed {best_overall['seed']})", color="green")
+                  label=f"D3QN Portfolio Value (Train, seed {best_overall['seed']})", color="green")
         plt.axhline(y=100000, color="r", linestyle="--", label="Initial Balance (Rs.100,000)")
         plt.title("Portfolio Net Worth Progress Across Training Episodes (Winning Seed)")
         plt.xlabel("Episodes")
@@ -571,7 +618,7 @@ def DQN_summary(dqn_portfolio, best_overall=None, seed_results=None):
 
     plt.figure(figsize=(12, 6))
     plt.plot(dqn_portfolio["PortfolioValue"])
-    plt.title("DQN Portfolio Value")
+    plt.title("Double Dueling DQN Portfolio Value")
     plt.xlabel("Trading Day")
     plt.ylabel("Portfolio Value")
     plt.grid(True)
