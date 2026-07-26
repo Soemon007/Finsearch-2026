@@ -1,13 +1,13 @@
 # FinSearch | End-Term Project 2026
 
-[![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)
 ![NumPy](https://img.shields.io/badge/NumPy-013243?style=for-the-badge&logo=numpy&logoColor=white)
 ![Pandas](https://img.shields.io/badge/Pandas-150458?style=for-the-badge&logo=pandas&logoColor=white)
 ![Scikit-Learn](https://img.shields.io/badge/scikit--learn-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)
 ![Statsmodels](https://img.shields.io/badge/Statsmodels-4B8BBE?style=for-the-badge)
 ![Matplotlib](https://img.shields.io/badge/Matplotlib-11557C?style=for-the-badge)
-![Git](https://img.shields.io/badge/Git-F05032?style=for-the-badge&logo=git&logoColor=white)]
+![Git](https://img.shields.io/badge/Git-F05032?style=for-the-badge&logo=git&logoColor=white)
 
 An algorithmic trading project comparing a classical statistical forecasting model (**ARIMA**) with a **Double Dueling Deep Q-Network (D3QN)** for trading on historical **NIFTY 50** market data.
 
@@ -18,8 +18,8 @@ Both strategies are evaluated using a common backtesting engine, allowing a dire
 ## Contributors
 
 * Rehan (@Soemon007)
-* Arnav
-* Nishant
+* Arnav (@VadapavR9)
+* Nishant (@nish2007-ui)
 
 ---
 
