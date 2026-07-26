@@ -1,180 +1,156 @@
-# FinSearch | 2026 | End-Term Project
+# FinSearch | End-Term Project 2026
+
+[![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)
+![NumPy](https://img.shields.io/badge/NumPy-013243?style=for-the-badge&logo=numpy&logoColor=white)
+![Pandas](https://img.shields.io/badge/Pandas-150458?style=for-the-badge&logo=pandas&logoColor=white)
+![Scikit-Learn](https://img.shields.io/badge/scikit--learn-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)
+![Statsmodels](https://img.shields.io/badge/Statsmodels-4B8BBE?style=for-the-badge)
+![Matplotlib](https://img.shields.io/badge/Matplotlib-11557C?style=for-the-badge)
+![Git](https://img.shields.io/badge/Git-F05032?style=for-the-badge&logo=git&logoColor=white)]
+
+An algorithmic trading project comparing a classical statistical forecasting model (**ARIMA**) with a **Double Dueling Deep Q-Network (D3QN)** for trading on historical **NIFTY 50** market data.
+
+Both strategies are evaluated using a common backtesting engine, allowing a direct comparison between statistical forecasting and reinforcement learning.
+
+---
 
 ## Contributors
 
-- Rehan (@Soemon007)
-- Arnav
-- Nishant
+* Rehan (@Soemon007)
+* Arnav
+* Nishant
 
 ---
 
-# Overview
+## Features
 
-This project investigates the application of statistical forecasting and deep reinforcement learning to algorithmic stock trading using historical Nifty100 market data.
-
-Two fundamentally different approaches are implemented and compared:
-
-- **AutoRegressive Integrated Moving Average (ARIMA)** — a classical statistical time-series forecasting model.
-- **Deep Q-Network (DQN)** — a reinforcement learning agent that learns an optimal trading policy through interaction with a simulated trading environment.
-
-Both models are evaluated using a common backtesting framework to ensure a fair comparison of trading performance.
-
----
-
-# Project Objectives
-
-- Forecast market behaviour using ARIMA.
-- Learn an optimal trading strategy using Deep Reinforcement Learning.
-- Generate Buy/Hold/Sell trading signals.
-- Backtest both strategies on historical Nifty100 data.
-- Compare performance using standard financial metrics.
+* ARIMA-based market forecasting
+* Double Dueling Deep Q-Network (D3QN)
+* Technical indicator feature engineering
+* Custom reinforcement learning trading environment
+* Common backtesting framework
+* Portfolio performance evaluation
+* Risk-adjusted performance comparison
 
 ---
 
-# Dataset
+## Repository Structure
 
-The project uses approximately six weeks of historical **Nifty100** market data.
-
-The dataset contains:
-
-- Open Price
-- High Price
-- Low Price
-- Volume
-
-Since closing prices were unavailable in the provided dataset, **opening prices were used consistently throughout the project** for:
-
-- Log return computation
-- Forecasting
-- Trading simulation
-- Portfolio evaluation
-
----
-
-# Project Structure
-
-```
-Finsearch-2026/
-│
-├── preprocessing.py          # Data cleaning and preprocessing
+```text
+.
+├── preprocessing.py          # Data preprocessing
 ├── feature_engineering.py    # Technical indicator generation
-├── ARIMA.py                  # ARIMA forecasting model
-├── FinSearch_End.ipynb       # DQN implementation
-├── backtest.py               # Common backtesting framework
-├── metric.py                 # Performance evaluation metrics
+├── ARIMA.py                  # ARIMA implementation
+├── DQN.py                    # Double Dueling DQN
+├── backtest.py               # Trading simulator
+├── metric.py                 # Performance metrics
 ├── Historical_Data.csv
 └── README.md
 ```
 
 ---
 
-# Methodology
+## Dataset
 
-## 1. Data Preprocessing
+The project uses approximately six weeks of historical **NIFTY 50** market data containing:
 
-- Clean missing values
-- Convert numerical columns
-- Compute logarithmic returns
-- Generate technical indicators
+* Open
+* High
+* Low
+* Volume
 
----
+Since closing prices were unavailable, **opening prices** were consistently used for:
 
-## 2. ARIMA Benchmark
-
-- Stationarity testing using the Augmented Dickey-Fuller (ADF) test
-- Model selection using Akaike Information Criterion (AIC)
-- Forecast future log returns
-- Convert forecasts into Buy/Hold/Sell signals
-
----
-
-## 3. Deep Reinforcement Learning
-
-A custom stock trading environment is developed where a Deep Q-Network learns an optimal trading policy.
-
-### State Space
-
-The agent observes engineered market features and portfolio information.
-
-### Action Space
-
-- Buy
-- Hold
-- Sell
-
-### Reward
-
-Portfolio value improvement after executing an action.
+* Feature engineering
+* Forecasting
+* Reinforcement learning
+* Trading simulation
+* Portfolio evaluation
 
 ---
 
-## 4. Backtesting
+## Methodology
 
-Both strategies are evaluated using the same execution engine.
+### ARIMA
 
-Initial capital:
+The statistical benchmark consists of:
 
-```
-₹100,000
-```
+* Augmented Dickey-Fuller (ADF) stationarity testing
+* Automatic order selection using AIC
+* Log-return forecasting
+* Buy/Hold/Sell signal generation
 
-Portfolio performance is computed using historical opening prices.
+### Double Dueling DQN
 
----
+The reinforcement learning agent learns a trading policy by interacting with a simulated trading environment.
 
-# Performance Metrics
+#### State
 
-The following evaluation metrics are computed for both strategies:
+* Moving-average ratios
+* Momentum indicators
+* Rolling volatility
+* RSI
+* MACD
+* Bollinger %B
+* Current portfolio position
 
-- Final Portfolio Value
-- Total Return
-- Daily Volatility
-- Annualized Volatility
-- Sharpe Ratio
-- Maximum Drawdown
+#### Actions
 
----
+* Buy
+* Hold
+* Sell
 
-# Results
+#### Training Improvements
 
-The project compares both models using:
-
-- Portfolio value over time
-- Buy/Sell signal visualization
-- Total return
-- Risk-adjusted performance
-- Drawdown analysis
-
----
-
-# Technologies Used
-
-- Python
-- NumPy
-- Pandas
-- Matplotlib
-- Statsmodels
-- TensorFlow / Keras
-- Scikit-learn
+* Double Q-Learning
+* Dueling Network Architecture
+* Experience Replay
+* Soft Target Updates
+* Multi-seed model selection
 
 ---
 
-# References
+## Backtesting
 
-1. Box, G. E. P., Jenkins, G. M., & Reinsel, G. C. *Time Series Analysis: Forecasting and Control.*
+Both models are evaluated using the same execution engine with:
 
-2. Sutton, R. S., & Barto, A. G. *Reinforcement Learning: An Introduction.*
-
-3. Mnih, V. et al. *Human-level Control through Deep Reinforcement Learning.* Nature, 2015.
+* Initial capital: **₹100,000**
+* Transaction costs
+* Slippage
+* Stop-loss
+* Take-profit
+* Fractional share trading
 
 ---
 
-## Authors
+## Results
 
-Rehan  
-Arnav  
-Nishant
+| Metric                |       ARIMA |            D3QN |
+| :-------------------- | ----------: | --------------: |
+| Final Portfolio Value | ₹117,627.33 | **₹117,932.31** |
+| Total Return          |      17.63% |      **17.93%** |
+| Daily Volatility      |  **0.0078** |          0.0083 |
+| Annualized Volatility |  **0.1241** |          0.1314 |
+| Sharpe Ratio          |  **0.7690** |          0.7457 |
+| Maximum Drawdown      | **−13.75%** |         −15.77% |
 
-Department of Chemical Engineering  
-Indian Institute of Technology Bombay  
-2026
+The D3QN achieved a slightly higher absolute return, while ARIMA produced stronger risk-adjusted performance through lower volatility, a smaller maximum drawdown, and a higher Sharpe ratio.
+
+---
+
+## Tech Stack
+
+* Python
+* NumPy
+* Pandas
+* PyTorch
+* Statsmodels
+* Scikit-learn
+* Matplotlib
+
+---
+
+## License
+
+This repository was developed as part of the **FinSearch 2026 End-Term Project** at IIT Bombay.
