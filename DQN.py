@@ -1,18 +1,3 @@
-"""
-DQN.py
-------
-Fast Double Dueling Deep Q-Network (D3QN) trading agent with Sortino reward 
-shaping, soft target updates, 50-day macro trend vision, and fixed share math.
-
-MODULE STRUCTURE
-================
-- DQN_modelling(train_prices, test_prices) -> trains across seeds, evaluates
-  the best-on-validation seed on the test split, and returns the backtested
-  portfolio plus diagnostics.
-- DQN_summary(dqn_portfolio, seed_results) -> prints, plots, and saves the
-  results.
-"""
-
 import copy
 import random
 
@@ -349,8 +334,20 @@ def evaluate_greedy(agent, env):
     with torch.no_grad():
         while not done:
             state_t = torch.FloatTensor(state).unsqueeze(0).to(device)
-            q_values = agent.policy_net(state_t)
-            action = torch.argmax(q_values, dim=1).item()
+            q_values = agent.policy_net(state_t).squeeze(0)
+
+            sell_q = q_values[0].item()
+            hold_q = q_values[1].item()
+            buy_q  = q_values[2].item()
+
+            THRESHOLD = 0.10
+
+            if buy_q > max(sell_q, hold_q) + THRESHOLD:
+                action = 2
+            elif sell_q > max(buy_q, hold_q) + THRESHOLD:
+                action = 0
+            else:
+                action = 1
             state, _, done = env.step(action)
     agent.policy_net.train()
     return env.net_worth
@@ -447,8 +444,20 @@ def DQN_modelling(train_prices, test_prices):
     while not done:
         state_t = torch.FloatTensor(state).unsqueeze(0).to(device)
         with torch.no_grad():
-            q_values = agent.policy_net(state_t)
-        action = torch.argmax(q_values, dim=1).item()
+            q_values = agent.policy_net(state_t).squeeze(0)
+
+            sell_q = q_values[0].item()
+            hold_q = q_values[1].item()
+            buy_q  = q_values[2].item()
+
+            THRESHOLD = 0.10
+
+            if buy_q > max(sell_q, hold_q) + THRESHOLD:
+                action = 2
+            elif sell_q > max(buy_q, hold_q) + THRESHOLD:
+                action = 0
+            else:
+                action = 1
 
         actions.append(action)
         state, reward, done = test_env.step(action)
